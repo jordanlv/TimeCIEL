@@ -5,7 +5,7 @@ def create_hypercube(x, side_lengths):
     """Create an hypercube from its center and side lengths
 
     Args:
-        x (Tensor): (n_dim,)
+        x (Tensor): (n_dim)
         side_lengths (Tensor): (n_dim,)
 
     Returns:
@@ -17,20 +17,36 @@ def create_hypercube(x, side_lengths):
     return hypercube
 
 
-_batch_create_hypercube = torch.vmap(create_hypercube)
+_create_temporal_hypercube = torch.vmap(create_hypercube, in_dims=(0, None))
 
 
-def batch_create_hypercube(x, side_lengths):
+def create_temporal_hypercube(x, side_lengths):
+    """Create a temporal hypercube from its centers and side lengths
+
+    Args:
+        x (Tensor): (seq_len, n_dim)
+        side_lengths (Tensor): (n_dim,)
+
+    Returns:
+        Tensor: (seq_len, n_dim, 2)
+    """
+    return _create_temporal_hypercube(x, side_lengths)
+
+
+_batch_create_temporal_hypercube = torch.vmap(create_hypercube)
+
+
+def batch_create_temporal_hypercube(x, side_lengths):
     """Create a batch of hypercubes from their center and side lengths
 
     Args:
-        x (Tensor): (batch_size, n_dim)
-        side_lengths (Tensor): (batch_size, n_dim) | (batch_size, 1)
+        x (Tensor): (batch_size, seq_len, n_dim)
+        side_lengths (Tensor): (batch_size, seq_len, n_dim)
 
     Returns:
-        Tensor: (batch_size, n_dim, 2)
+        Tensor: (batch_size, seq_len, n_dim, 2)
     """
-    return _batch_create_hypercube(x, side_lengths)
+    return _batch_create_temporal_hypercube(x, side_lengths)
 
 
 def intersect_point(hypercube, x):
@@ -46,36 +62,52 @@ def intersect_point(hypercube, x):
     return ((x < hypercube[:, 1]) & (x > hypercube[:, 0])).all()
 
 
-_bacth_intersect_point = torch.vmap(intersect_point, in_dims=(0, None))
+_intersect_signal = torch.vmap(intersect_point, in_dims=(0, 0))
 
 
-def batch_intersect_point(hypercubes, x):
+def intersect_signal(hypercubes, x):
     """Check in which hypercubes of a batch of hypercubes x is contained.
 
     Args:
-        hypercube (Tensor): (batch_size, n_dim, 2)
-        x (Tensor): (n_dim,)
+        hypercube (Tensor): (seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim,)
 
     Returns:
-        BoolTensor: (batch_size, 1)
+        BoolTensor: (seq_len, 1)
     """
-    return _bacth_intersect_point(hypercubes, x)
+    return _intersect_signal(hypercubes, x)
 
 
-_bacth_intersect_points = torch.vmap(_bacth_intersect_point, in_dims=(None, 0))
+_batch_intersect_signal = torch.vmap(intersect_signal, in_dims=(0, None))
 
 
-def batch_intersect_points(hypercubes, x):
+def batch_intersect_signal(hypercubes, x):
     """Check in which hypercubes of a batch of hypercubes each x of a batch is contained.
 
     Args:
-        hypercubes (Tensor): (h_batch_size, n_dim, 2)
-        x (Tensor): (x_batch_size, n_dim)
+        hypercubes (Tensor): (h_batch_size, seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim)
 
     Returns:
-        BoolTensor: (x_batch_size, h_batch_size, 1)
+        BoolTensor: (x_batch_size, seq_len, 1)
     """
-    return _bacth_intersect_points(hypercubes, x)
+    return _batch_intersect_signal(hypercubes, x)
+
+
+_batch_intersect_signals = torch.vmap(batch_intersect_signal, in_dims=(None, 0))
+
+
+def batch_intersect_signals(hypercubes, x):
+    """Check in which hypercubes of a batch of hypercubes each x of a batch is contained.
+
+    Args:
+        hypercubes (Tensor): (h_batch_size, seq_len, n_dim, 2)
+        x (Tensor): (x_batch_size, seq_len, n_dim)
+
+    Returns:
+        BoolTensor: (h_batch_size, x_batch_size, seq_len)
+    """
+    return _batch_intersect_signals(hypercubes, x)
 
 
 def intersect_hypercube(hypercube1, hypercube2):
@@ -93,37 +125,56 @@ def intersect_hypercube(hypercube1, hypercube2):
     return (max_start <= min_end).all()
 
 
-_batch_intersect_hypercube = torch.vmap(intersect_hypercube, in_dims=(None, 0))
+_intersect_temporal_hypercube = torch.vmap(intersect_hypercube, in_dims=(0, 0))
 
 
-def batch_intersect_hypercube(hypercube1, hypercubes2):
+def intersect_temporal_hypercube(hypercube1, hypercubes2):
     """Check which hypercube in a batch of hypercubes intersects with another hypercube.
 
     Args:
-        hypercube1 (Tensor): (n_dim, 2)
-        hypercubes2 (Tensor): (batch_size, n_dim, 2)
+        hypercube1 (Tensor): (seq_len, n_dim, 2)
+        hypercubes2 (Tensor): (seq_len, n_dim, 2)
 
     Returns:
-        Tensor: (batch_size, 1)
+        Tensor: (seq_len, 1)
     """
-    return _batch_intersect_hypercube(hypercube1, hypercubes2)
+    return _intersect_temporal_hypercube(hypercube1, hypercubes2)
 
 
-_batch_intersect_hypercubes = torch.vmap(_batch_intersect_hypercube, in_dims=(0, None))
+_batch_intersect_temporal_hypercube = torch.vmap(
+    intersect_temporal_hypercube, in_dims=(None, 0)
+)
 
 
-def batch_intersect_hypercubes(hypercubes1, hypercubes2):
-    """Check for each hypercube in a batch of hypercubes intersects with which hypercube
-    in another batch of hyeprcubes.
+def batch_intersect_temporal_hypercube(hypercube1, hypercubes2):
+    """Check which hypercube in a batch of hypercubes intersects with another hypercube.
 
     Args:
-        hypercubes1 (_type_): (h1_batch_size, n_dim, 2)
-        hypercubes2 (_type_): (h2_batch_size, n_dim, 2)
+        hypercube1 (Tensor): (h1_batch_size, seq_len, n_dim, 2)
+        hypercubes2 (Tensor): (seq_len, n_dim, 2)
 
     Returns:
-        Tensor: (h2_batch_size, h1_batch_size, 1)
+        Tensor: (h1_batch_size, seq_len, 1)
     """
-    return _batch_intersect_hypercubes(hypercubes1, hypercubes2)
+    return _batch_intersect_temporal_hypercube(hypercube1, hypercubes2)
+
+
+_batch_intersect_temporal_hypercubes = torch.vmap(
+    batch_intersect_temporal_hypercube, in_dims=(0, None)
+)
+
+
+def batch_intersect_temporal_hypercubes(hypercube1, hypercubes2):
+    """Check which hypercube in a batch of hypercubes intersects with another hypercube.
+
+    Args:
+        hypercube1 (Tensor): (h1_batch_size, seq_len, n_dim, 2)
+        hypercubes2 (Tensor): (h2_batch_size, seq_len, n_dim, 2)
+
+    Returns:
+        Tensor: (h2_batch_size, h1_batch_size, seq_len)
+    """
+    return _batch_intersect_temporal_hypercubes(hypercube1, hypercubes2)
 
 
 def update_hypercube(hypercube, x, alpha):
@@ -135,12 +186,15 @@ def update_hypercube(hypercube, x, alpha):
         x (Tensor): (n_dim,)
         alpha (Tensor): (1,)
 
-    Returns:
+    Returns:x
         Tensor: (n_dim, 2)
     """
     updated_hypercube = hypercube.clone().detach()
     low, high = updated_hypercube[:, 0], updated_hypercube[:, 1]
     dims_mask = (x < high) & (x > low)
+
+    should_extend = torch.where(alpha < 0.0, True, ~(dims_mask.all()))
+
     dims_mask = torch.where(dims_mask.all(), dims_mask, ~dims_mask)
     theta = torch.sum(dims_mask)
     diff = high - low
@@ -151,28 +205,49 @@ def update_hypercube(hypercube, x, alpha):
     dist_high = torch.abs(high - x)
     mask = dist_high < dist_low
 
-    high = torch.where(mask & dims_mask, new_high, high)
-    low = torch.where(~mask & dims_mask, new_low, low)
+    high = torch.where(should_extend & (mask & dims_mask), new_high, high)
+    low = torch.where(should_extend & (~mask & dims_mask), new_low, low)
 
     return torch.stack([low, high], dim=-1)
 
 
-_batch_update_hypercube = torch.vmap(update_hypercube, in_dims=(0, None, 0))
+_update_temporal_hypercube = torch.vmap(update_hypercube, in_dims=(0, 0, 0))
 
 
-def batch_update_hypercube(hypercubes, x, alphas):
+def update_temporal_hypercube(hypercubes, x, alphas):
     """Updates a batch of hypercubes towards x, modifying its sides so that the final volume
     is change by a factor alpha.
 
     Args:
-        hypercubes (Tensor): (batch_size, n_dim, 2)
-        x (Tensor): (n_dim,)
-        alphas (Tensor): (batch_size, 1)
+        hypercubes (Tensor): (seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim,)
+        alphas (Tensor): (seq_len, 1)
 
     Returns:
-        Tensor: (batch_size, n_dim, 2)
+        Tensor: (seq_len, n_dim, 2)
     """
-    return _batch_update_hypercube(hypercubes, x, alphas)
+    return _update_temporal_hypercube(hypercubes, x, alphas)
+
+
+_batch_update_temporal_hypercube = torch.vmap(
+    update_temporal_hypercube, in_dims=(0, None, 0)
+)
+
+
+def batch_update_temporal_hypercube(hypercubes, x, alphas):
+    """Updates a batch of hypercubes towards x, modifying its sides so that the final volume
+    is change by a factor alpha.
+
+    Args:
+        hypercubes (Tensor): (batch_size, seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim,)
+        alphas (Tensor): (batch_size, seq_len, 1)
+
+    Returns:
+        Tensor: (batch_size, seq_len, n_dim, 2)
+    """
+
+    return _batch_update_temporal_hypercube(hypercubes, x, alphas)
 
 
 def sides(hypercube):
@@ -247,33 +322,51 @@ def dist_point_to_border(hypercube, x):
     return min_dist
 
 
-_batch_dist_point_to_border = torch.vmap(dist_point_to_border, in_dims=(0, None))
+_dist_signal_to_border = torch.vmap(dist_point_to_border, in_dims=(0, 0))
 
 
-def batch_dist_point_to_border(hypercubes, x):
+def dist_signal_to_border(hypercubes, x):
     """Calculate the distance of a point to the edges of a batch of hypercubes
 
     Args:
-        hypercubes (Tensor): (batch_size, n_dim, 2)
-        x (Tensor): (n_dim,)
+        hypercubes (Tensor): (seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim,)
+
+    Returns:
+        Tensor: (seq_len,)
+    """
+    return _dist_signal_to_border(hypercubes, x)
+
+
+_batch_dist_signal_to_border = torch.vmap(dist_signal_to_border, in_dims=(0, None))
+
+
+def batch_dist_signal_to_border(hypercubes, x):
+    """Calculate the distance of a point to the edges of a batch of hypercubes
+
+    Args:
+        hypercubes (Tensor): (batch_size, seq_len, n_dim, 2)
+        x (Tensor): (seq_len, n_dim,)
 
     Returns:
         Tensor: (batch_size,)
     """
-    return _batch_dist_point_to_border(hypercubes, x)
+    return _batch_dist_signal_to_border(hypercubes, x)
 
 
-_batch_dist_points_to_border = torch.vmap(batch_dist_point_to_border, in_dims=(None, 0))
+_batch_dist_signals_to_border = torch.vmap(
+    batch_dist_signal_to_border, in_dims=(None, 0)
+)
 
 
-def batch_dist_points_to_border(hypercubes, x):
+def batch_dist_signals_to_border(hypercubes, x):
     """Calculate the distance of each point of a batch of points to the edges of a batch of hypercubes
 
     Args:
-        hypercubes (Tensor): (h_batch_size, n_dim, 2)
-        x (Tensor): (x_batch_size, n_dim)
+        hypercubes (Tensor): (h_batch_size, seq_len, n_dim, 2)
+        x (Tensor): (x_batch_size, seq_len, n_dim)
 
     Returns:
         Tensor: (x_batch_size, h_batch_size)
     """
-    return _batch_dist_points_to_border(hypercubes, x)
+    return _batch_dist_signals_to_border(hypercubes, x)

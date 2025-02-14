@@ -41,6 +41,7 @@ class NClass(InternalModelInterface):
         self.memory_sizes = self.memory_sizes[~agents_mask]
         self.memory_ptr = self.memory_ptr[~agents_mask]
         self.base_prediction = self.base_prediction[~agents_mask]
+        self.initialized = self.initialized[~agents_mask]
 
     def create(self, X):
         batch_size = X.size(0)
@@ -69,9 +70,6 @@ class NClass(InternalModelInterface):
         self.target_memories = torch.vstack([self.target_memories, target_memories])
         self.memory_sizes = torch.vstack([self.memory_sizes, memory_size])
         self.memory_ptr = torch.vstack([self.memory_ptr, memory_ptr])
-
-    def maturity(self, agents_mask):
-        return self.memory_sizes[agents_mask] > (self.input_dim + 1)
 
     def update(self, X, y, agent_mask):
 

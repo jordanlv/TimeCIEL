@@ -2,30 +2,26 @@ import torch
 import copy
 from .activation_interface import ActivationInterface
 from ...common.orthotopes.base import (
-    batch_create_hypercube,
-    batch_intersect_hypercubes,
-    batch_intersect_point,
-    batch_intersect_hypercube,
-    batch_update_hypercube,
-    batch_dist_points_to_border,
+    batch_create_temporal_hypercube,
+    batch_intersect_temporal_hypercubes,
+    batch_intersect_signals,
+    batch_update_temporal_hypercube,
+    batch_dist_signals_to_border,
     create_hypercube,
 )
 
-batch_update_hypercubes = torch.vmap(batch_update_hypercube, in_dims=(None, 0, None))
-batch_batch_intersect_points = torch.vmap(batch_intersect_point)
-batch_batch_update_hypercube = torch.vmap(batch_update_hypercube, in_dims=(None, 0, 0))
 
-
-class BaseActivation(ActivationInterface):
-    def __init__(self, input_dim, output_dim, alpha, device="cpu", **kwargs):
+class TimeActivation(ActivationInterface):
+    def __init__(self, seq_len, input_dim, output_dim, alpha, device="cpu", **kwargs):
         self.device = device
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.seq_len = seq_len
         self.alpha = torch.tensor(alpha, device=self.device)
 
         self.orthotopes: torch.Tensor = torch.empty(
-            0, input_dim, 2, device=device
-        )  # (n_agents, input_dim, 2) Tensor of orthotopes
+            0, seq_len, input_dim, 2, device=device
+        )  # (n_agents, seq_len, input_dim, 2) Tensor of orthotopes
 
     @property
     def n_agents(self):
@@ -39,29 +35,28 @@ class BaseActivation(ActivationInterface):
         self.orthotopes = torch.vstack([self.orthotopes, orthotopes])
 
     def activated(self, X):
-        agents_mask = batch_intersect_point(self.orthotopes, X)
-        return agents_mask
+        agents_mask = batch_intersect_signals(self.orthotopes, X)
+        return agents_mask.all(dim=-1)
 
     def neighbors(self, X, side_length):
-        if X.size(0) > 1:
-            neighborhood = batch_create_hypercube(
-                X, torch.vstack([side_length] * X.size(0))
-            )
-            neighbor_mask = batch_intersect_hypercubes(neighborhood, self.orthotopes)
-        else:
-            neighborhood = create_hypercube(X.squeeze(0), side_length)
-            neighbor_mask = batch_intersect_hypercube(neighborhood, self.orthotopes)
-        return neighbor_mask
+
+        neighborhood = create_hypercube(X, side_length)
+
+        neighbor_mask = batch_intersect_temporal_hypercubes(
+            self.orthotopes, neighborhood
+        )
+
+        return neighbor_mask.sum(dim=-1) > neighbor_mask.shape[-1] * 0.5
 
     def immediate_expandable(self, X, agents_mask):
         n_agents = torch.count_nonzero(agents_mask)
-        expanded_neighbors = batch_update_hypercube(
+        expanded_neighbors = batch_update_temporal_hypercube(
             self.orthotopes[agents_mask],
             X.squeeze(0),
             torch.full((n_agents,), self.alpha),
         )
-        expanded_mask = batch_intersect_point(expanded_neighbors, X)
-        return expanded_mask
+        expanded_mask = batch_intersect_signals(expanded_neighbors, X)
+        return expanded_mask.any(dim=-1)
 
     def update(self, X, agents_mask, good, bad, no_activated=False):
         n_agents = (
@@ -75,13 +70,13 @@ class BaseActivation(ActivationInterface):
         else:
             alphas[bad] = -self.alpha
 
-        updated_orthotopes = batch_update_hypercube(
+        updated_orthotopes = batch_update_temporal_hypercube(
             self.orthotopes[agents_mask], X.squeeze(0), alphas
         )
         self.orthotopes[agents_mask] = updated_orthotopes
 
     def dist_to_border(self, X, agents_mask):
-        return batch_dist_points_to_border(self.orthotopes[agents_mask], X)
+        return batch_dist_signals_to_border(self.orthotopes[agents_mask], X)
 
     def clone(self):
         cloned_self = copy.copy(self)  # shallow copy

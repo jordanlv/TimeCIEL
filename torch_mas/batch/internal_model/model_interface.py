@@ -38,18 +38,6 @@ class InternalModelInterface(ABC):
         raise not NotImplementedError()
 
     @abstractmethod
-    def maturity(self, agents_mask: torch.BoolTensor):
-        """Get maturity of specified agents
-
-        Args:
-            agents_mask (BoolTensor): (n_agents,)
-
-        Returns:
-            BoolTensor: (n_agents, 1)
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
     def __call__(self, X: torch.Tensor, agents_mask: torch.BoolTensor = None):
         """Retrieve predictions from agents
 

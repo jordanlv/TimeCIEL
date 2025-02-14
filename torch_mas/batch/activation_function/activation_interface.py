@@ -73,7 +73,6 @@ class ActivationInterface(ABC):
         self,
         X: torch.Tensor,
         agents_mask: torch.BoolTensor,
-        good: torch.BoolTensor,
         bad: torch.BoolTensor,
         no_activated: bool = False,
     ):

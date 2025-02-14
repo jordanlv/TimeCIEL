@@ -65,9 +65,11 @@ class BaseTrainer:
         return created_idxs
 
     def partial_fit(self, X: torch.Tensor, y: torch.Tensor):
-        neighborhood_agents = self.activation.neighbors(X, self.neighborhood_sides)
+        neighborhood_agents = self.activation.neighbors(
+            X, self.neighborhood_sides
+        ).squeeze(0)
         n_neighbors = torch.count_nonzero(neighborhood_agents)
-        activated_agents = self.activation.activated(X.squeeze(0))
+        activated_agents = self.activation.activated(X)
         n_activated = torch.count_nonzero(activated_agents)
         agents_to_update = torch.empty(0, device=self.device)
         if n_activated == 0 and n_neighbors == 0:
@@ -75,7 +77,9 @@ class BaseTrainer:
             agents_to_update = torch.concat([agents_to_update, created_idxs])
 
         if n_activated == 0 and n_neighbors > 0:
-            expanded_mask = self.activation.immediate_expandable(X, neighborhood_agents)
+            expanded_mask = self.activation.immediate_expandable(
+                X, neighborhood_agents
+            ).squeeze(-1)
             expanded_idxs = torch.arange(self.n_agents, device=self.device)[
                 neighborhood_agents
             ][expanded_mask]
@@ -101,11 +105,11 @@ class BaseTrainer:
                 if n_neighbors > 1:
                     radius = batch_sides(
                         self.activation.orthotopes[neighborhood_agents]
-                    ).mean(0)
+                    ).mean()
                 created_idxs = self.create_agents(X, radius)
                 agents_to_update = torch.concat([agents_to_update, created_idxs])
         if n_activated > 0:
-            agents_mask = activated_agents
+            agents_mask = activated_agents.squeeze(dim=-1)
             predictions = self.internal_model(X, agents_mask)
             score = self.criterion(predictions, y).squeeze(-1)  # (n_predictions,)
             activated_maturity = self.internal_model.maturity(agents_mask).squeeze(-1)
@@ -132,29 +136,39 @@ class BaseTrainer:
                 self.partial_fit(X, y)
 
     def predict(self, X: torch.Tensor):
-        """Make a prediction
-
-        Args:
-            X (Tensor): (batch_size, input_dim)
-
-        Returns:
-            Tensor: (batch_size, output_dim)
-        """
         batch_size = X.size(0)
         agents_mask = torch.ones(self.n_agents, dtype=torch.bool, device=self.device)
-        neighbor_mask = self.activation.neighbors(X, self.neighborhood_sides)
-        maturity_mask = self.internal_model.maturity(agents_mask)
-        distances = self.activation.dist_to_border(X, agents_mask)
-        closest_mask = (
-            torch.zeros_like(distances, dtype=torch.bool)
-            .scatter(1, distances.argsort()[:, :3], True)
-            .unsqueeze(-1)
+
+        res = torch.empty((batch_size,), device=self.device)
+        y_hat = self.internal_model(X, agents_mask).squeeze(-1)
+
+        # activated
+        activated_mask = self.activation.activated(X)  # (batch_size, n_orthotopes)
+
+        preds_activation = y_hat.clone()
+        preds_activation[~activated_mask] = torch.nan
+
+        res, _ = preds_activation.nanmedian(dim=0)
+
+        non_pred_mask = ~activated_mask.all(dim=0)
+
+        # neighbors
+        neighbor_mask = self.activation.neighbors(X, self.neighborhood_sides).transpose(
+            0, 1
         )
-        mask = (neighbor_mask) & maturity_mask.T
-        y_hat = self.internal_model(X, agents_mask).transpose(0, 1)
+        preds_neighbors = y_hat.clone()
 
-        W = mask.float().unsqueeze(-1)
-        nan_mask = ~(mask.any(dim=-1))  # check if no agents are selected
-        W[nan_mask] = closest_mask[nan_mask].float()
+        preds_neighbors[~neighbor_mask] = torch.nan
+        mask = non_pred_mask & neighbor_mask.sum(dim=0)
+        res[mask], _ = preds_neighbors.nanmedian(dim=0)
 
-        return (y_hat * W).sum(1) / W.sum(1)
+        # closest
+        distances = self.activation.dist_to_border(X[non_pred_mask], agents_mask).mean(
+            dim=-1
+        )
+        closest_mask = torch.zeros_like(distances, dtype=torch.bool).scatter(
+            1, distances.argsort()[:, :1], True
+        )
+        res[res.isnan()] = y_hat.transpose(0, 1)[closest_mask][res.isnan()]
+
+        return res

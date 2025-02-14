@@ -1,8 +1,8 @@
-# CIEL ☁️
+# TimeCIEL ☁️
 
 ## Overview 🌍
 
-CIEL (Contextual Interactive Ensemble Learning) is a multiagent ensemble learning system designed for supervised learning tasks. It leverages multiple learning agents that collaborate to solve supervised learning tasks.
+TimeCIEL (Contextual Interactive Ensemble Learning) is a multiagent ensemble learning system designed for multivariate time series supervised learning tasks. It leverages multiple learning agents that collaborate to solve supervised learning tasks.
 
 ### Prerequisites
 
@@ -61,7 +61,7 @@ The repository is organized as follows:
         └── trainer/        # Implementation of various trainer
             └── <trainer>.py        # Code for specific trainers
 ```
-
+<!-- 
 ## Context Learning 🤖
 
 ### Context Agents 
@@ -153,4 +153,4 @@ Complete examples of learning (regression and classification) are available in [
 
 - _Boes, Jérémy, Julien Nigon, Nicolas Verstaevel, Marie-Pierre Gleizes, and Frédéric Migeon. 2015. “The Self-Adaptive Context Learning Pattern: Overview and Proposal.” In SpringerLink, 91–104. Cham, Switzerland: Springer. https://doi.org/10.1007/978-3-319-25591-0_7._
 - _Verstaevel, Nicolas, Jérémy Boes, Julien Nigon, Dorian D’Amico, and Marie-Pierre Gleizes. 2017. “Lifelong Machine Learning with Adaptive Multi-Agent Systems” 1 (February):275–86. https://doi.org/10.5220/0006247302750286._
-- _Fourez, Thibault, Nicolas Verstaevel, Frédéric Migeon, Frédéric Schettini, and Frederic Amblard. 2022. “An Ensemble Multi-Agent System for Non-Linear Classification.” ArXiv E-Prints, September. https://doi.org/10.48550/arXiv.2209.06824._
+- _Fourez, Thibault, Nicolas Verstaevel, Frédéric Migeon, Frédéric Schettini, and Frederic Amblard. 2022. “An Ensemble Multi-Agent System for Non-Linear Classification.” ArXiv E-Prints, September. https://doi.org/10.48550/arXiv.2209.06824._ -->
