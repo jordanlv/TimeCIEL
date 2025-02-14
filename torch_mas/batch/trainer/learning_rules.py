@@ -111,7 +111,7 @@ class IfActivated(LearningRule):
         # solve inaccuracy
         mask_inac = n_activated > 0
         if validity.n_agents > 0:
-            activation_to_update = mask_inac & bad
+            activation_to_update = activated.T & bad
             agents_to_create = torch.zeros(batch_size, dtype=torch.bool, device=device)
             agents_to_destroy = torch.zeros(n_agents, dtype=torch.bool, device=device)
             return (
@@ -135,7 +135,6 @@ class SimpleDestroy(LearningRule):
         X,
         validity,
         internal_model,
-        good,
         bad,
         activated,
         neighbors,
