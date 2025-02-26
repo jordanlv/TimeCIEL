@@ -17,11 +17,13 @@ def batch_dtw(activations, X, window_rate=0.1):
         path_matrix (tensor) : (batch_size, n_agents, seq_len_p, seq_len_h)
     """
     window = int(X.shape[1] * window_rate)
-    costs, dist, path = rust_dtw.batch_dtw_full(X.numpy(), activations.numpy(), window)
+    costs, dist, path = rust_dtw.batch_dtw_full(
+        X.cpu().numpy(), activations.cpu().numpy(), window
+    )
     return (
-        torch.from_numpy(costs.copy()),
-        torch.from_numpy(dist.copy()),
-        torch.from_numpy(path[:, :, 1:, 1:].copy()),
+        torch.from_numpy(costs.copy()).to(X.device),
+        torch.from_numpy(dist.copy()).to(X.device),
+        torch.from_numpy(path[:, :, 1:, 1:].copy()).to(X.device),
     )
 
 
@@ -36,9 +38,12 @@ def batch_is_neighbor(activations, X, paths, side_length):
         tensor: (batch_size, n_agents)
     """
     neighbors = rust_dtw.batch_is_neighbor(
-        activations.numpy(), X.numpy(), paths[:, :, 1:, 1:].numpy(), side_length.numpy()
+        activations.cpu().numpy(),
+        X.cpu().numpy(),
+        paths[:, :, 1:, 1:].cpu().numpy(),
+        side_length.cpu().numpy(),
     )
-    return torch.from_numpy(neighbors.copy())
+    return torch.from_numpy(neighbors.copy()).to(X.device)
 
 
 # @torch.compile # ne change rien on dirait
