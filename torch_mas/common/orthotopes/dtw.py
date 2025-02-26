@@ -36,11 +36,12 @@ def batch_is_neighbor(activations, X, paths, side_length):
         tensor: (batch_size, n_agents)
     """
     neighbors = rust_dtw.batch_is_neighbor(
-        activations.numpy(), X.numpy(), paths[:, :, 1:, 1:].numpy(), side_length
+        activations.numpy(), X.numpy(), paths[:, :, 1:, 1:].numpy(), side_length.numpy()
     )
     return torch.from_numpy(neighbors.copy())
 
 
+# @torch.compile # ne change rien on dirait
 def update_hypercube(hypercube, x, path, alpha):
     """Updates an hypercube towards x, modifying its sides so that the final volume
     is change by a factor alpha.
@@ -58,25 +59,25 @@ def update_hypercube(hypercube, x, path, alpha):
     updated_hypercube = hypercube.clone().detach()
     low, high = updated_hypercube[:, 0], updated_hypercube[:, 1]
 
-    dists = torch.where(
-        x < low, low - x, torch.where(x > high, x - high, torch.zeros_like(x))
-    )
+    dists = torch.relu(low - x) + torch.relu(x - high)
 
-    x_indices = torch.max((dists * path.unsqueeze(-1)), dim=0).indices
-    x = x.gather(0, x_indices.unsqueeze(1)).squeeze(1)
+    x_path = torch.sum((dists * path.unsqueeze(-1)), dim=0) / path.sum()
 
-    dims_mask = (x < high) & (x > low)
+    dims_mask = (x_path < high) & (x_path > low)
+    all_dims_true = dims_mask.all()
+    should_extend = torch.where(alpha < 0.0, True, ~(all_dims_true))
 
-    should_extend = torch.where(alpha < 0.0, True, ~(dims_mask.all()))
-
-    dims_mask = torch.where(dims_mask.all(), dims_mask, ~dims_mask)
+    dims_mask = torch.where(all_dims_true, dims_mask, ~dims_mask)
     theta = torch.sum(dims_mask)
     diff = high - low
-    new_high = diff * torch.pow(1 + alpha, 1 / theta) + low
-    new_low = high - diff * torch.pow(1 + alpha, 1 / theta)
 
-    dist_low = torch.abs(low - x)
-    dist_high = torch.abs(high - x)
+    factor = torch.pow(1 + alpha, 1 / theta)
+
+    new_high = diff * factor + low
+    new_low = high - diff * factor
+
+    dist_low = torch.abs(low - x_path)
+    dist_high = torch.abs(high - x_path)
     mask = dist_high < dist_low
 
     high = torch.where(should_extend & (mask & dims_mask), new_high, high)
