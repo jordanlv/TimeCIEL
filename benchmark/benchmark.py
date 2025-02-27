@@ -201,7 +201,9 @@ def benchmark(datasets, n_trials=300, device="cpu", seed=0):
             trainer.fit(dataset)
 
             y_pred = []
-            for batch in torch.tensor(X_test_c, dtype=torch.float32).split(32):
+            for batch in torch.tensor(
+                X_test_c, dtype=torch.float32, device=device
+            ).split(32):
                 y_pred += trainer.predict(batch).cpu().tolist()
 
             all_acc.append(accuracy_score(y_pred, y_test_c))
