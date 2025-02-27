@@ -95,11 +95,11 @@ def benchmark(datasets, n_trials=300, n_splits=3, device="cpu", seed=0):
 
             def objective(trial):
 
+                _, seq_len, input_dim = X_train_c.shape
+
                 alpha = trial.suggest_float("alpha", 0.1, 0.9)
                 R = [trial.suggest_float(f"R{i}", 0.001, 0.4) for i in range(input_dim)]
                 bad_th = trial.suggest_float("bad_th", 0.001, 0.9)
-
-                _, seq_len, input_dim = X_train_c.shape
 
                 acc = []
 
