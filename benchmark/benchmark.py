@@ -5,9 +5,6 @@ sys.path.append("..")
 import numpy as np
 import torch
 
-np.random.seed(0)
-torch.manual_seed(0)
-
 import os
 import shutil
 import subprocess
@@ -30,13 +27,22 @@ from torch_mas.batch.trainer.learning_rules_dtw import (
 from torch_mas.data import DataBuffer
 
 import optuna
+from optuna.samplers import TPESampler
+
+import tqdm
+
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-def benchmark(datasets, n_trials=300):
+def benchmark(datasets, n_trials=300, device="cpu", seed=0):
+
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
     os.makedirs("datasets", exist_ok=True)
 
     for k, v in datasets.items():
+        # Download dataset
         dataset_path = os.path.join("datasets", k)
 
         if os.path.exists(dataset_path):
@@ -51,6 +57,7 @@ def benchmark(datasets, n_trials=300):
 
         print(f"Downloaded {k}")
 
+        # Load dataset
         train_file = os.path.join(dataset_path, f"{k}_TRAIN.ts")
         X_train, y_train = load_from_ts_file(train_file, return_type="numpy3D")
 
@@ -65,7 +72,7 @@ def benchmark(datasets, n_trials=300):
 
         all_acc = []
 
-        for e in range(1, 31):
+        for e in tqdm.tqdm(range(1, 31)):
 
             if e == 1:
                 X_train_c = X_train.copy()
@@ -83,15 +90,14 @@ def benchmark(datasets, n_trials=300):
             X_train_c = (X_train_c - min_t) / (max_t - min_t)
             X_test_c = (X_test_c - min_t) / (max_t - min_t)
 
-            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+            # Stratified KFold
+            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
 
             def objective(trial):
                 _, seq_len, input_dim = X_train_c.shape
 
                 internal_model = NClass(
-                    input_dim=input_dim,
-                    output_dim=1,
-                    memory_length=0,
+                    input_dim=input_dim, output_dim=1, memory_length=0, device=device
                 )
 
                 activation = DTWActivation(
@@ -100,6 +106,7 @@ def benchmark(datasets, n_trials=300):
                     output_dim=1,
                     alpha=trial.suggest_float("alpha", 0.1, 0.9),
                     neighbor_rate=0,
+                    device=device,
                 )
 
                 trainer = DTWTrainer(
@@ -117,6 +124,7 @@ def benchmark(datasets, n_trials=300):
                         IfActivated(),
                         SimpleDestroy(10000),
                     ],
+                    device=device,
                 )
 
                 acc = []
@@ -131,32 +139,37 @@ def benchmark(datasets, n_trials=300):
                         y_train_c[test_index],
                     )
 
-                    dataset = DataBuffer(X_inner_train, y_inner_train)
+                    dataset = DataBuffer(X_inner_train, y_inner_train, device=device)
 
                     trainer.fit(dataset)
 
                     y_pred = []
-                    for batch in torch.tensor(X_inner_val, dtype=torch.float32).split(
-                        32
-                    ):
-                        y_pred += trainer.predict(batch).tolist()
+                    for batch in torch.tensor(
+                        X_inner_val, dtype=torch.float32, device=device
+                    ).split(32):
+                        y_pred += trainer.predict(batch).cpu().tolist()
 
                     acc.append(accuracy_score(y_pred, y_inner_val))
 
                 acc = np.array(acc)
                 return np.mean(acc)
 
-            study = optuna.create_study(direction="maximize")
-            study.optimize(objective, n_trials=n_trials)
+            def callback(study, trial):
+                if trial.value == 1.0:
+                    study.stop()
 
+            study = optuna.create_study(
+                sampler=TPESampler(seed=seed), direction="maximize"
+            )
+            study.optimize(objective, n_trials=n_trials, callbacks=[callback])
+
+            # Evaluate
             best_params = study.best_params
 
             _, seq_len, input_dim = X_train_c.shape
 
             internal_model = NClass(
-                input_dim=input_dim,
-                output_dim=1,
-                memory_length=0,
+                input_dim=input_dim, output_dim=1, memory_length=0, device=device
             )
 
             activation = DTWActivation(
@@ -165,6 +178,7 @@ def benchmark(datasets, n_trials=300):
                 output_dim=1,
                 alpha=best_params["alpha"],
                 neighbor_rate=0,
+                device=device,
             )
 
             trainer = DTWTrainer(
@@ -179,15 +193,16 @@ def benchmark(datasets, n_trials=300):
                     IfActivated(),
                     SimpleDestroy(10000),
                 ],
+                device=device,
             )
 
-            dataset = DataBuffer(X_train_c, y_train_c)
+            dataset = DataBuffer(X_train_c, y_train_c, device=device)
 
             trainer.fit(dataset)
 
             y_pred = []
             for batch in torch.tensor(X_test_c, dtype=torch.float32).split(32):
-                y_pred += trainer.predict(batch).tolist()
+                y_pred += trainer.predict(batch).cpu().tolist()
 
             all_acc.append(accuracy_score(y_pred, y_test_c))
 
