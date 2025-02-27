@@ -39,6 +39,14 @@ class DTWActivation(BaseActivation):
         return batch_is_neighbor(self.orthotopes, X, paths, side_length)
 
     def update(self, X, agents_mask, bad, no_activated, path):
+        """
+        Args:
+            X (tensor): (batch_size, seq_len, in_dim)
+            agents_mask (tensor): (batch_size, n_agents)
+            bad (tensor): (batch_size,n_agents)
+            no_activated (tensor): (batch_size,)
+            path (tensor): (batch_size, n_agents, seq_len, seq_len)
+        """
         batch_size, seq_len, _ = X.size()
         self.goods += (~bad).sum(0).view(self.n_agents, 1)
         self.bads += bad.sum(0).view(self.n_agents, 1)
@@ -64,11 +72,22 @@ class DTWActivation(BaseActivation):
             alphas,
         )
 
+        # We only update the orthotopes that must be updated
+        orthotoppes_to_update = (((alphas != 0).sum(dim=0) > 0).sum(dim=-1)) > 0
+
         updated_orthotopes = batch_batch_update_temporal_hypercube(
-            self.orthotopes, X, path, alphas
-        )  # (batch_size, n_agents, in_dim, 2)
+            self.orthotopes[orthotoppes_to_update],
+            X,
+            path[:, orthotoppes_to_update],
+            alphas[:, orthotoppes_to_update],
+        )  # (batch_size, n_agents, seq_len, in_dim, 2)
+
+        all_updated_orthotopes = (
+            self.orthotopes.clone().unsqueeze(0).repeat(batch_size, 1, 1, 1, 1)
+        )
+        all_updated_orthotopes[:, orthotoppes_to_update] = updated_orthotopes
         deltas = (
-            updated_orthotopes - self.orthotopes
+            all_updated_orthotopes - self.orthotopes
         )  # (batch_size, n_agents, in_dim, 2)
         deltas = deltas.sum(dim=0)  # (n_agents, in_dim, 2)
         self.orthotopes += deltas
