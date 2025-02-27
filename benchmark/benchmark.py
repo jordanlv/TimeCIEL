@@ -94,42 +94,48 @@ def benchmark(datasets, n_trials=300, n_splits=3, device="cpu", seed=0):
             skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
             def objective(trial):
+
+                alpha = trial.suggest_float("alpha", 0.1, 0.9)
+                R = [trial.suggest_float(f"R{i}", 0.001, 0.4) for i in range(input_dim)]
+                bad_th = trial.suggest_float("bad_th", 0.001, 0.9)
+
                 _, seq_len, input_dim = X_train_c.shape
-
-                internal_model = NClass(
-                    input_dim=input_dim, output_dim=1, memory_length=0, device=device
-                )
-
-                activation = DTWActivation(
-                    seq_len=seq_len,
-                    input_dim=input_dim,
-                    output_dim=1,
-                    alpha=trial.suggest_float("alpha", 0.1, 0.9),
-                    neighbor_rate=0,
-                    device=device,
-                )
-
-                trainer = DTWTrainer(
-                    activation=activation,
-                    internal_model=internal_model,
-                    R=[
-                        trial.suggest_float(f"R{i}", 0.001, 0.4)
-                        for i in range(input_dim)
-                    ],
-                    bad_th=trial.suggest_float("bad_th", 0.001, 0.9),
-                    n_epochs=5,
-                    learning_rules=[
-                        IfNoActivatedAndNoNeighbors(),
-                        IfNoActivated(),
-                        IfActivated(),
-                        SimpleDestroy(10000),
-                    ],
-                    device=device,
-                )
 
                 acc = []
 
                 for train_index, test_index in skf.split(X_train_c, y_train_c):
+
+                    internal_model = NClass(
+                        input_dim=input_dim,
+                        output_dim=1,
+                        memory_length=0,
+                        device=device,
+                    )
+
+                    activation = DTWActivation(
+                        seq_len=seq_len,
+                        input_dim=input_dim,
+                        output_dim=1,
+                        alpha=alpha,
+                        neighbor_rate=0,
+                        device=device,
+                    )
+
+                    trainer = DTWTrainer(
+                        activation=activation,
+                        internal_model=internal_model,
+                        R=R,
+                        bad_th=bad_th,
+                        n_epochs=5,
+                        learning_rules=[
+                            IfNoActivatedAndNoNeighbors(),
+                            IfNoActivated(),
+                            IfActivated(),
+                            SimpleDestroy(10000),
+                        ],
+                        device=device,
+                    )
+
                     X_inner_train, X_inner_val = (
                         X_train_c[train_index],
                         X_train_c[test_index],
