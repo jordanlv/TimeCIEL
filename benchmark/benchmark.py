@@ -34,7 +34,7 @@ import tqdm
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
-def benchmark(datasets, n_trials=300, device="cpu", seed=0):
+def benchmark(datasets, n_trials=300, n_splits=3, device="cpu", seed=0):
 
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -91,7 +91,7 @@ def benchmark(datasets, n_trials=300, device="cpu", seed=0):
             X_test_c = (X_test_c - min_t) / (max_t - min_t)
 
             # Stratified KFold
-            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
+            skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
 
             def objective(trial):
                 _, seq_len, input_dim = X_train_c.shape
