@@ -165,7 +165,6 @@ class BaseTrainer:
         n_neighbors = torch.count_nonzero(neighbors_agents, dim=-1)  # (batch_size,)
         _, activated_agents = self.activation.activated(X)  # (batch_size, n_agents)
         n_activated = torch.count_nonzero(activated_agents, dim=-1)  # (batch_size,)
-
         agents_to_predict = neighbors_agents.T.sum(-1) > 0
         predictions = self.internal_model(
             X, agents_to_predict
