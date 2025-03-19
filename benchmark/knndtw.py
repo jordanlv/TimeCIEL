@@ -90,7 +90,7 @@ try:
     if dataset_index < 1 or dataset_index > len(dataset_list) + 1:
         raise ValueError("Dataset number out of range")
 
-    dataset_name = dataset_list[dataset_index - 1]  # Convert number to dataset name
+    dataset_name = dataset_list[dataset_index - 1]
     dataset_link = datasets[dataset_name]
 
     print(f"Starting benchmark for dataset {dataset_name}")
