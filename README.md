@@ -1,4 +1,4 @@
-# TimeCIEL ☁️
+# TimeCIEL ⏱️☁️
 
 ## Overview 🌍
 
@@ -29,8 +29,13 @@ The repository is organized as follows:
 
 ```
 .
-├── examples/       # Example notebooks demonstrating code recipes
-│   └── <example_notebook>.ipynb        # Notebooks with usage examples and tutorials
+├── benchmark/      # Codes of the benchmark
+│   ├── <method>.py     # Benchmark for a specific method
+│   └── <result_method>.txt     # Results of a benchmark
+│
+├── explainability/       # Explainability shows in the paper
+│   ├── global.ipynb      # Global explainability
+│   └── local.ipynb       # Local explainability
 │
 └── torch_mas/      # Core implementation of the multi-agent algorithms
     ├── batch/      # Implementation of batch mode
