@@ -1,0 +1,10 @@
+ArticularyWordRecognition: mean=0.9907, std=0.0043
+AtrialFibrillation: mean=0.2111, std=0.0912
+BasicMotions: mean=1.0000, std=0.0000
+Epilepsy: mean=0.9860, std=0.0099
+Cricket: mean=0.9963, std=0.0071
+ERing: mean=0.9180, std=0.0210
+EthanolConcentration: mean=0.2894, std=0.0228
+FingerMovements: mean=0.5870, std=0.0348
+HandMovementDirection: mean=0.3802, std=0.0542
+Handwriting: mean=0.6045, std=0.0242
