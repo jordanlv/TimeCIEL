@@ -22,12 +22,14 @@ class ActivationInterface(ABC):
         self,
         X: torch.Tensor,
         side_lengths: torch.Tensor,
+        timesteps: torch.Tensor,
     ):
         """Create agents
 
         Args:
             X (Tensor): (batch_size, n_dim)
             side_lengths (Tensor): (batch_size, n_dim)
+            timestesps (Tensor): (batch_size, seq_len)
         """
         raise NotImplementedError()
 

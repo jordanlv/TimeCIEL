@@ -51,14 +51,16 @@ class TimeActivation(ActivationInterface):
     def immediate_expandable(self, X, agents_mask):
         n_agents = torch.count_nonzero(agents_mask)
         expanded_neighbors = batch_update_temporal_hypercube(
-            self.orthotopes[agents_mask],
+            self.orthotopes[agents_mask.squeeze()],
             X.squeeze(0),
-            torch.full((n_agents,), self.alpha),
+            torch.full((n_agents, X.size(1)), self.alpha),
         )
         expanded_mask = batch_intersect_signals(expanded_neighbors, X)
-        return expanded_mask.any(dim=-1)
+        res = torch.zeros(agents_mask.size(0), dtype=torch.bool)
+        res[agents_mask.squeeze()] = expanded_mask.any(dim=-1)
+        return res
 
-    def update(self, X, agents_mask, good, bad, no_activated=False):
+    def update(self, X, agents_mask, bad, no_activated=False):
         n_agents = (
             agents_mask.size(0)
             if isinstance(agents_mask, torch.LongTensor)

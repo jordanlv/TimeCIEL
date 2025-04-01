@@ -49,132 +49,140 @@ def batch_create_temporal_hypercube(x, side_lengths):
     return _batch_create_temporal_hypercube(x, side_lengths)
 
 
-def intersect_point(hypercube, x):
+def intersect_point(hypercube, timestep, x):
     """Check if a point is contained in a hypercube
 
     Args:
         hypercube (Tensor): (n_dim, 2)
+        timesteps (Tensor): (1)
         x (Tensor): (n_dim,)
 
     Returns:
         BoolTensor: (1,)
     """
-    return ((x < hypercube[:, 1]) & (x > hypercube[:, 0])).all()
+    return timestep & ((x < hypercube[:, 1]) & (x > hypercube[:, 0])).all()
 
 
-_intersect_signal = torch.vmap(intersect_point, in_dims=(0, 0))
+_intersect_signal = torch.vmap(intersect_point, in_dims=(0, 0, 0))
 
 
-def intersect_signal(hypercubes, x):
+def intersect_signal(hypercubes, timesteps, x):
     """Check in which hypercubes of a batch of hypercubes x is contained.
 
     Args:
         hypercube (Tensor): (seq_len, n_dim, 2)
+        timesteps (Tensor): (seq_len)
         x (Tensor): (seq_len, n_dim,)
 
     Returns:
         BoolTensor: (seq_len, 1)
     """
-    return _intersect_signal(hypercubes, x)
+    return _intersect_signal(hypercubes, timesteps, x)
 
 
-_batch_intersect_signal = torch.vmap(intersect_signal, in_dims=(0, None))
+_batch_intersect_signal = torch.vmap(intersect_signal, in_dims=(0, 0, None))
 
 
-def batch_intersect_signal(hypercubes, x):
+def batch_intersect_signal(hypercubes, timesteps, x):
     """Check in which hypercubes of a batch of hypercubes each x of a batch is contained.
 
     Args:
         hypercubes (Tensor): (h_batch_size, seq_len, n_dim, 2)
+        timesteps (Tensor): (h_batch_size, seq_len)
         x (Tensor): (seq_len, n_dim)
 
     Returns:
         BoolTensor: (x_batch_size, seq_len, 1)
     """
-    return _batch_intersect_signal(hypercubes, x)
+    return _batch_intersect_signal(hypercubes, timesteps, x)
 
 
-_batch_intersect_signals = torch.vmap(batch_intersect_signal, in_dims=(None, 0))
+_batch_intersect_signals = torch.vmap(batch_intersect_signal, in_dims=(None, None, 0))
 
 
-def batch_intersect_signals(hypercubes, x):
+def batch_intersect_signals(hypercubes, timesteps, x):
     """Check in which hypercubes of a batch of hypercubes each x of a batch is contained.
 
     Args:
         hypercubes (Tensor): (h_batch_size, seq_len, n_dim, 2)
+        timesteps (Tensor): (h_batch_size, seq_len)
         x (Tensor): (x_batch_size, seq_len, n_dim)
 
     Returns:
         BoolTensor: (h_batch_size, x_batch_size, seq_len)
     """
-    return _batch_intersect_signals(hypercubes, x)
+    return _batch_intersect_signals(hypercubes, timesteps, x)
 
 
-def intersect_hypercube(hypercube1, hypercube2):
+def intersect_hypercube(hypercube1, hypercube2, timestep):
     """Check if two hypercubes intersect
 
     Args:
         hypercube1 (Tensor): (n_dim, 2)
         hypercube2 (Tensor): (n_dim, 2)
+        timesteps (Tensor): (1)
 
     Returns:
         BoolTensor: (1,)
     """
     max_start = torch.maximum(hypercube1[:, 0], hypercube2[:, 0])
     min_end = torch.minimum(hypercube1[:, 1], hypercube2[:, 1])
-    return (max_start <= min_end).all()
+    return timestep & (max_start <= min_end).all()
 
 
-_intersect_temporal_hypercube = torch.vmap(intersect_hypercube, in_dims=(0, 0))
+_intersect_temporal_hypercube = torch.vmap(intersect_hypercube, in_dims=(0, 0, 0))
 
 
-def intersect_temporal_hypercube(hypercube1, hypercubes2):
+def intersect_temporal_hypercube(hypercube1, hypercubes2, timesteps):
     """Check which hypercube in a batch of hypercubes intersects with another hypercube.
 
     Args:
         hypercube1 (Tensor): (seq_len, n_dim, 2)
         hypercubes2 (Tensor): (seq_len, n_dim, 2)
+        timesteps (Tensor): (seq_len)
 
     Returns:
         Tensor: (seq_len, 1)
     """
-    return _intersect_temporal_hypercube(hypercube1, hypercubes2)
+    return _intersect_temporal_hypercube(hypercube1, hypercubes2, timesteps)
 
 
 _batch_intersect_temporal_hypercube = torch.vmap(
-    intersect_temporal_hypercube, in_dims=(None, 0)
+    intersect_temporal_hypercube, in_dims=(None, 0, 0)
 )
 
 
-def batch_intersect_temporal_hypercube(hypercube1, hypercubes2):
+def batch_intersect_temporal_hypercube(hypercube1, hypercubes2, timesteps):
     """Check which hypercube in a batch of hypercubes intersects with another hypercube.
 
     Args:
-        hypercube1 (Tensor): (h1_batch_size, seq_len, n_dim, 2)
-        hypercubes2 (Tensor): (seq_len, n_dim, 2)
+        hypercube1 (Tensor):  (seq_len, n_dim, 2)
+        hypercubes2 (Tensor): (h2_batch_size, seq_len, n_dim, 2)
+        timesteps (Tensor): (h2_batch_size, seq_len)
 
     Returns:
-        Tensor: (h1_batch_size, seq_len, 1)
+        Tensor: (h2_batch_size, seq_len, 1)
     """
-    return _batch_intersect_temporal_hypercube(hypercube1, hypercubes2)
+    return _batch_intersect_temporal_hypercube(hypercube1, hypercubes2, timesteps)
 
 
 _batch_intersect_temporal_hypercubes = torch.vmap(
-    batch_intersect_temporal_hypercube, in_dims=(0, None)
+    batch_intersect_temporal_hypercube, in_dims=(0, None, None)
 )
 
 
-def batch_intersect_temporal_hypercubes(hypercube1, hypercubes2):
+def batch_intersect_temporal_hypercubes(hypercube1, hypercubes2, timesteps):
     """Check which hypercube in a batch of hypercubes intersects with another hypercube.
 
     Args:
         hypercube1 (Tensor): (h1_batch_size, seq_len, n_dim, 2)
         hypercubes2 (Tensor): (h2_batch_size, seq_len, n_dim, 2)
+        hypercubes2 (Tensor): (h2_batch_size, seq_len)
 
     Returns:
-        Tensor: (h2_batch_size, h1_batch_size, seq_len)
+        Tensor: (h1_batch_size, h2_batch_size, seq_len)
     """
-    return _batch_intersect_temporal_hypercubes(hypercube1, hypercubes2)
+    return _batch_intersect_temporal_hypercubes(hypercube1, hypercubes2, timesteps)
 
 
 def update_hypercube(hypercube, x, alpha):

@@ -25,7 +25,6 @@ class BaseTrainer:
         activation: ActivationInterface,
         internal_model: InternalModelInterface,
         R: list | float,
-        imprecise_th: float,
         bad_th: float,
         criterion: Callable = mse_loss,
         n_epochs: int = 10,
@@ -39,7 +38,6 @@ class BaseTrainer:
             R = [R]
         self.R = torch.as_tensor(R, device=device)
         self.neighborhood_sides = torch.as_tensor(self.R, device=device)
-        self.imprecise_th = imprecise_th
         self.bad_th = bad_th
         self.n_epochs = n_epochs
         self.device = device
@@ -81,15 +79,15 @@ class BaseTrainer:
                 X, neighborhood_agents
             ).squeeze(-1)
             expanded_idxs = torch.arange(self.n_agents, device=self.device)[
-                neighborhood_agents
-            ][expanded_mask]
+                neighborhood_agents.squeeze() & expanded_mask
+            ]
             activated_maturity = self.internal_model.maturity(expanded_idxs).squeeze(-1)
             expanded_idxs = expanded_idxs[activated_maturity]
             n_expand_candidates = len(expanded_idxs)
             if n_expand_candidates > 0:
                 predictions = self.internal_model(X, expanded_idxs)
                 score = self.criterion(predictions, y).squeeze(-1)  # (n_predictions,)
-                good = score <= self.imprecise_th
+                good = score <= self.bad_th
                 bad = score > self.bad_th
 
                 self.activation.update(X, expanded_idxs, good, bad, no_activated=True)
@@ -114,7 +112,7 @@ class BaseTrainer:
             score = self.criterion(predictions, y).squeeze(-1)  # (n_predictions,)
             activated_maturity = self.internal_model.maturity(agents_mask).squeeze(-1)
 
-            good = score <= self.imprecise_th
+            good = score <= self.bad_th
             bad = score > self.bad_th
 
             self.activation.update(X, agents_mask, good, bad, no_activated=False)
@@ -133,6 +131,7 @@ class BaseTrainer:
             batches = shuffled_indices.split(1)
             for batch in batches:
                 X, y = dataset[batch]
+                print(X.shape, y.shape)
                 self.partial_fit(X, y)
 
     def predict(self, X: torch.Tensor):

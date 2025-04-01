@@ -32,6 +32,7 @@ class BaseTrainer:
         internal_model: InternalModelInterface,
         R: list | float,
         bad_th: float,
+        kernel_size: list | int,
         learning_rules: list[LearningRule] = [
             IfNoActivatedAndNoNeighbors(),
             IfNoActivated(),
@@ -50,6 +51,12 @@ class BaseTrainer:
         if isinstance(R, float):
             R = [R]
         self.R = torch.as_tensor(R, device=device)
+
+        if isinstance(kernel_size, int):
+            kernel_size = [kernel_size]
+
+        self.kernel_size = torch.as_tensor(kernel_size, device=device)
+
         self.neighborhood_sides = torch.as_tensor(self.R, device=device)
         self.bad_th = bad_th
         self.n_epochs = n_epochs
@@ -85,60 +92,37 @@ class BaseTrainer:
         Returns:
             BoolTensor: (n_created, batch_size)
         """
-        batch_size = X.size(0)
 
-        lows = X - side_lengths / 2
-        highs = X + side_lengths / 2
-        hypercubes = torch.stack(
-            [lows, highs], dim=-1
-        )  # (batch_size, seq_len, n_dim, 2)
+        # TODO smart create agents which if 2 time series (of the same class)
+        #  have a common part then agent is created at this emplacement
 
-        coverage_time = batch_intersect_signals(
-            hypercubes, X
-        )  # (batch_size, batch_size, seq_len)
+        # TODO if multiple kernel sizes
+        batch_size = X[agents_to_create].size(0)
 
-        coverage_matrix = coverage_time.all(dim=-1)
+        kernels = self.kernel_size[
+            torch.randint(0, self.kernel_size.size(0), (batch_size,))
+        ]
 
-        valid_candidate_mask = agents_to_create.unsqueeze(1)
-        coverage_matrix = coverage_matrix & valid_candidate_mask
+        timesteps = torch.empty((batch_size,))
 
-        signals_to_cover = agents_to_create.clone()
-        current_coverage = torch.logical_not(signals_to_cover)
+        for i, kernel in enumerate(kernels):
+            timesteps[i] = torch.randint(0, X.size(1) - kernel, (1,))
 
-        selected_candidates = torch.zeros(
-            batch_size, dtype=torch.bool, device=self.device
+        row_indices = torch.arange(X.size(1)).unsqueeze(1).repeat(1, batch_size).T
+
+        bool_tensor = (row_indices >= timesteps.unsqueeze(-1)) & (
+            row_indices <= (timesteps + kernels).unsqueeze(-1)
         )
 
-        # Greedy loop: select the candidate that covers the most _new_ signals.
-        while not current_coverage.all():
-            union_coverage = (
-                current_coverage.unsqueeze(0) | coverage_matrix
-            )  # (batch_size, batch_size)
-            new_coverage = union_coverage ^ current_coverage.unsqueeze(0)
-            new_signals_count = new_coverage.sum(dim=1)  # (batch_size,)
+        self.activation.create(
+            X[agents_to_create], side_lengths[agents_to_create], bool_tensor
+        )
+        self.internal_model.create(X[agents_to_create])
 
-            new_signals_count = torch.where(
-                selected_candidates,
-                torch.full_like(new_signals_count, -1),
-                new_signals_count,
-            )
+        models_to_init = torch.eye(X.size(0))
+        models_to_init[~agents_to_create] = False
 
-            max_new = int(new_signals_count.max().item())
-            if max_new <= 0:
-                break
-
-            selected_idx = int(torch.argmax(new_signals_count).item())
-            selected_candidates[selected_idx] = True
-
-            current_coverage = current_coverage | coverage_matrix[selected_idx]
-
-        agents_selected = selected_candidates
-
-        self.activation.create(X[agents_selected], side_lengths[agents_selected])
-        self.internal_model.create(X[agents_selected])
-
-        models_to_init = coverage_matrix[agents_selected]  # (n_created, batch_size)
-        return models_to_init
+        return models_to_init  # (n_created, batch_size)
 
     def feedbacks(self, propositions, scores, neighbors, n_neighbors):
         """_summary_
@@ -262,14 +246,21 @@ class BaseTrainer:
             self.destroy_agents(_to_destroy)
 
     def fit(self, dataset):
+        self.agents_over_epoch = []
         n_samples = len(dataset)
-        for _ in range(self.n_epochs):
+        for e in range(self.n_epochs):
             indices = torch.arange(n_samples)
             shuffled_indices = indices[torch.randperm(indices.size(0))]
             batches = shuffled_indices.split(self.batch_size)
             for batch in batches:
                 X, y = dataset[batch]
                 self.partial_fit(X, y)
+
+            if e < self.n_epochs - 1:
+                self.destroy_agents((self.activation.used < 1).squeeze())
+                self.activation.used = torch.zeros_like(self.activation.used)
+
+            self.agents_over_epoch.append(self.n_agents)
 
     def predict(self, X: torch.Tensor):
         batch_size = X.size(0)
