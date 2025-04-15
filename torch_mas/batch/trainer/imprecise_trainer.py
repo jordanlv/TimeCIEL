@@ -25,13 +25,14 @@ def mse_loss(y_pred: torch.FloatTensor, y: torch.FloatTensor):
     return ((y_pred - y) ** 2).mean(dim=-1)
 
 
-class BaseTrainer:
+class ImpreciseTrainer:
     def __init__(
         self,
         activation: ActivationInterface,
         internal_model: InternalModelInterface,
         R: list | float,
         bad_th: float,
+        imprecise_th: float,
         kernel_size: list | int,
         learning_rules: list[LearningRule] = [
             IfNoActivatedAndNoNeighbors(),
@@ -58,6 +59,7 @@ class BaseTrainer:
         self.kernel_size = torch.as_tensor(kernel_size, device=device)
 
         self.neighborhood_sides = torch.as_tensor(self.R, device=device)
+        self.imprecise_th = imprecise_th
         self.bad_th = bad_th
         self.n_epochs = n_epochs
         self.batch_size = batch_size
@@ -135,9 +137,10 @@ class BaseTrainer:
         Returns:
             bad (n_agents, batch_size)
         """
+        good = scores <= self.imprecise_th  # (n_agents, batch_size)
         bad = scores > self.bad_th  # (n_agents, batch_size)
 
-        return bad
+        return good, bad
 
     def partial_fit(self, X: torch.Tensor, y: torch.Tensor, can_create=True):
         batch_size, seq_len, input_dim = X.size()
@@ -148,6 +151,9 @@ class BaseTrainer:
         n_neighbors = torch.count_nonzero(neighbors_agents, dim=-1)  # (batch_size,)
         _, activated_agents = self.activation.activated(X)  # (batch_size, n_agents)
         n_activated = torch.count_nonzero(activated_agents, dim=-1)  # (batch_size,)
+        maturity = self.internal_model.maturity(
+            torch.ones(self.n_agents, dtype=torch.bool)
+        )  # (n_agents, 1)
         agents_to_predict = neighbors_agents.T.sum(-1) > 0
         predictions = self.internal_model(
             X, agents_to_predict
@@ -159,7 +165,9 @@ class BaseTrainer:
         propositions[agents_to_predict] = predictions
         scores = self.criterion(propositions, y)  # (n_agents, batch_size)
 
-        bad = self.feedbacks(propositions, scores, neighbors_agents.T, n_neighbors)
+        good, bad = self.feedbacks(
+            propositions, scores, neighbors_agents.T, n_neighbors
+        )
 
         agents_to_create = torch.zeros(
             (batch_size,), dtype=torch.bool, device=self.device
@@ -182,20 +190,24 @@ class BaseTrainer:
             (
                 _agents_to_create,
                 _activation_to_update,
+                _models_to_update,
                 _agents_to_destroy,
             ) = learning_rule(
                 X,
                 self.activation,
                 self.internal_model,
+                good,
                 bad,
                 activated_agents,
                 neighbors_agents,
                 n_activated,
                 n_neighbors,
+                maturity,
             )
 
             agents_to_create |= _agents_to_create
             hypercubes_to_update |= _activation_to_update
+            models_to_update |= _models_to_update
             agents_to_destroy |= _agents_to_destroy
 
         if self.n_agents > 0:
@@ -227,14 +239,9 @@ class BaseTrainer:
         radius[cond] = (sum_masked / n_neighbors.view(batch_size, 1, 1))[cond]
         radius[~cond] = self.R.repeat(batch_size, 1, 1)[~cond]
 
-        if can_create:
-            models_to_init = self.create_agents(X, agents_to_create, radius)
-            models_to_update = torch.zeros(
-                (self.n_agents, batch_size), device=self.device, dtype=torch.bool
-            )
-            if models_to_init.size(0) > 0:
-                models_to_update[-models_to_init.size(0) :, :] = models_to_init
-            self.internal_model.update(X, y, models_to_update)
+        models_to_init = self.create_agents(X, agents_to_create, radius)
+        models_to_update = torch.vstack([models_to_update, models_to_init])
+        self.internal_model.update(X, y, models_to_update, self.activation.timesteps)
 
         # destroy agents
         _to_destroy = torch.zeros(self.n_agents, dtype=torch.bool)
@@ -294,6 +301,7 @@ class BaseTrainer:
         closest_mask = torch.zeros_like(distances, dtype=torch.bool).scatter(
             1, distances.argsort()[:, :1], True
         )
+
         res[res.isnan()] = y_hat[closest_mask][res.isnan()]
 
         return res
