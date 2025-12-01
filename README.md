@@ -1,68 +1,43 @@
 # TimeCIEL ⏱️☁️
 
-## Overview 🌍
 
-TimeCIEL (Contextual Interactive Ensemble Learning) is a multiagent ensemble learning system designed for multivariate time series supervised learning tasks. It leverages multiple learning agents that collaborate to solve supervised learning tasks.
+[![HAL](https://img.shields.io/badge/HAL-Paper-blue.svg)](https://hal.science/hal-05053054v1/document)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-### Prerequisites
+---
 
-- **Python 3.x** installed on your machine
-- **pip** (Python package installer)
+Official implementation of the paper: **"TimeCIEL: Contextual Interactive Ensemble Learning for Time Series Classification"** (Accepted at PAAMS 2025).
 
-## Installation 💾
+> **Authors:** Jordan Levy, Clément Blanco-Volle, Nicolas Verstaevel, Benoit Gaudou & Vincent Talon <br>
+> **Institution:** IRIT, Université Toulouse Capitole
 
-To install the dependencies of the project:
+## Abstract
+
+Multivariate time series classification is a challenging task where black box models achieve high performances. However, in real-world applications, interpretability is crucial for helping users understand the decision-making process of an algorithm, not just its performance. In this paper, we present a multi-agent ensemble learning approach for time series classification suited for online learning. Our approach relies on the organization of agents in the feature space at each time step. We demonstrate that our approach achieves performances comparable to state-of-the-art methods. Finally, we highlight its explainability and interpretability properties as a white-box model.
+
+## Installation
+
+To install the project dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-To install the library:
-
+To install the library directly from GitHub:
 ```bash
-pip install git+https://github.com/jordanlv/TimeCIEL.git
+pip install git+[https://github.com/jordanlv/TimeCIEL.git](https://github.com/jordanlv/TimeCIEL.git)
 ```
 
-## Repository 🗂️
-
-The repository is organized as follows:
-
+## Citation
+If you find this code useful, please cite our paper:
 ```
-.
-├── benchmark/      # Codes of the benchmark
-│   ├── <method>.py     # Benchmark for a specific method
-│   └── <result_method>.txt     # Results of a benchmark
-│
-├── explainability/       # Explainability shows in the paper
-│   ├── global.ipynb      # Global explainability
-│   └── local.ipynb       # Local explainability
-│
-└── torch_mas/      # Core implementation of the multi-agent algorithms
-    ├── batch/      # Implementation of batch mode
-    │   ├── activation_function/        # Implementations of various activation functions
-    │   │   └── <activation>.py     # Code for specific activation functions
-    │   │
-    │   ├── internal_model/     # Implementations of internal models
-    │   │   └── <model>.py      # Code for specific types of internal models
-    │   │
-    │   └── trainer/        # Implementation of various trainer
-    │       ├── <trainer>.py        # Code for specific trainers
-    │       └── learning_rules.py       # Definitions of learning rules for trainers
-    │
-    ├── common/     # Utilities shared between batch and sequential modes
-    │   ├── models/     # Utilities for machine learning models
-    │   │   └── <model_utilities>.py        # Code for model utility functions, layers, etc.
-    │   │
-    │   └── orthotopes/     # Utilities for orthotope (n-dimensional rectangle) manipulation
-    │       └── <orthotope_utilities>.py        # Code for orthotope operations and utilities
-    │
-    └── sequential/     # Implementation of sequential mode
-        ├── activation_function/        # Implementations of various activation functions
-        │   └── <activation>.py     # Code for specific activation functions
-        │
-        ├── internal_model/     # Implementations of internal models
-        │   └── <model>.py      # Code for specific types of internal models
-        │
-        └── trainer/        # Implementation of various trainer
-            └── <trainer>.py        # Code for specific trainers
+@inproceedings{levy2025timeciel,
+  title={TimeCIEL: Contextual Interactive Ensemble Learning for Time Series Classification},
+  author={Levy, Jordan and Blanco-Volle, Cl{\'e}ment and Verstaevel, Nicolas and Gaudou, Benoit and Talon, Vincent},
+  booktitle={International Conference on Practical Applications of Agents and Multi-Agent Systems},
+  pages={316--327},
+  year={2025},
+  organization={Springer}
+}
 ```
